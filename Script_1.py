@@ -26,4 +26,13 @@ for i, message in enumerate(mbox):
 
                 print(f"Saved: {filename}")
 
-print("Done extracting attachments.")
+print("Done extracting attachments.")print("Done extracting attachments.")
+
+
+def main():
+    mbox_file = "Inbox.mbox"   # your Thunderbird mbox file
+    extract_attachments(mbox_file)
+
+
+if __name__ == "__main__":
+    main()
