@@ -26,7 +26,7 @@ for i, message in enumerate(mbox):
 
                 print(f"Saved: {filename}")
 
-print("Done extracting attachments.")print("Done extracting attachments.")
+print("Done extracting attachments.")
 
 
 def main():
