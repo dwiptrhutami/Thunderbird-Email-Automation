@@ -5,7 +5,7 @@ A Python-based automation toolkit for Mozilla Thunderbird that enables sending, 
 ## Features
 
 - **Send Email** — Compose and send emails with or without attachments via SMTP
-- **Read Email** — Fetch and parse emails from your inbox using IMAP
+- **Read Email** — Fetch and parse emails from your inbox using MBOX File
 - **Download Attachments** — Automatically save email attachments to a local directory
 
 ## Requirements
@@ -20,23 +20,23 @@ A Python-based automation toolkit for Mozilla Thunderbird that enables sending, 
 pip install -r requirements.txt
 requirements.txt
 
-imaplib2
 smtplib
 email
-Note: imaplib, smtplib, and email are part of the Python standard library. No additional packages are required for basic usage.
+mailbox
+BytesParser
+Note: packages are part of the Python standard library. No additional packages are required for basic usage.
 
 Configuration
 Create a config.py or .env file with your email credentials:
 
 EMAIL_ADDRESS = "your-email@example.com"
 EMAIL_PASSWORD = "your-app-password"
-IMAP_SERVER   = "imap.example.com"   # e.g., imap.gmail.com
 SMTP_SERVER   = "smtp.example.com"   # e.g., smtp.gmail.com
 SMTP_PORT     = 587
 IMAP_PORT     = 993
 Security tip: Use an app-specific password rather than your main account password. Never commit credentials to version control.
 
-Usage
+# Usage
 Send an Email
 from sender import send_email
 
@@ -46,14 +46,16 @@ send_email(
     body="This email was sent automatically.",
     attachment_path="report.pdf"  # optional
 )
-Read Emails
+
+# Read Emails
 from reader import fetch_emails
 
 emails = fetch_emails(folder="INBOX", limit=10)
 for mail in emails:
     print(mail["from"], mail["subject"], mail["date"])
     print(mail["body"])
-Download Attachments
+
+# Download Attachments
 from downloader import download_attachments
 
 download_attachments(
@@ -61,7 +63,9 @@ download_attachments(
     save_dir="./downloads",
     limit=20
 )
-Project Structure
+
+
+# Project Structure
 thunderbird-email-automation/
 ├── config.py              # Email credentials and server settings
 ├── sender.py              # SMTP email sending logic
@@ -69,7 +73,8 @@ thunderbird-email-automation/
 ├── downloader.py          # Attachment download logic
 ├── requirements.txt       # Python dependencies
 └── README.md
-How It Works
+
+# How It Works
 Module	Protocol	Description
 sender.py	SMTP	Connects to SMTP server, composes MIME messages, sends email
 reader.py	IMAP	Connects to IMAP server, fetches and parses email headers/body
