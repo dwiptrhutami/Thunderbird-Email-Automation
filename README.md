@@ -1,6 +1,3 @@
-
-The Thunderbird Email Automation project is outside this workspace, so I can't directly write to it. I'll generate the README content here so you can copy it over.
-
 # Thunderbird Email Automation
 
 A Python-based automation toolkit for Mozilla Thunderbird that enables sending, reading, and downloading email attachments programmatically — without relying on Thunderbird's UI.
