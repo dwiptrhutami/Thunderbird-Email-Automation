@@ -33,52 +33,37 @@ EMAIL_ADDRESS = "your-email@example.com"
 EMAIL_PASSWORD = "your-app-password"
 SMTP_SERVER   = "smtp.example.com"   # e.g., smtp.gmail.com
 SMTP_PORT     = 587
-IMAP_PORT     = 993
 Security tip: Use an app-specific password rather than your main account password. Never commit credentials to version control.
 
 # Usage
 Send an Email
-from sender import send_email
+from Send_Email.py import send_email
 
-send_email(
-    to="recipient@example.com",
-    subject="Hello from Thunderbird Automation",
-    body="This email was sent automatically.",
-    attachment_path="report.pdf"  # optional
+send_email_full(
+    to=recipient_addresses,
+    cc=cc_list,
+    subject=email_subject,
+    body=body_email,
+    attachment_list=file_path,
+    password_email=password_email
 )
 
 # Read Emails
-from reader import fetch_emails
-
-emails = fetch_emails(folder="INBOX", limit=10)
-for mail in emails:
-    print(mail["from"], mail["subject"], mail["date"])
-    print(mail["body"])
-
 # Download Attachments
-from downloader import download_attachments
+from ReadEmail.py import check_emails
 
-download_attachments(
-    folder="INBOX",
-    save_dir="./downloads",
-    limit=20
-)
-
+check_emails(mbox_path,inbox_dir,excel_tracking_file,day_yesterday)
 
 # Project Structure
 thunderbird-email-automation/
-├── config.py              # Email credentials and server settings
-├── sender.py              # SMTP email sending logic
-├── reader.py              # IMAP email reading logic
-├── downloader.py          # Attachment download logic
-├── requirements.txt       # Python dependencies
+├── ReadEmail.py              # Attachment download logic
+├── Send_Email.py             # SMTP email sending logic
 └── README.md
 
 # How It Works
 Module	Protocol	Description
-sender.py	SMTP	Connects to SMTP server, composes MIME messages, sends email
-reader.py	IMAP	Connects to IMAP server, fetches and parses email headers/body
-downloader.py	IMAP	Scans emails for attachments and saves them locally
+ReadEmail.py	MBOX Local File	Scans emails for attachments and saves them locally
+Send_Email.py	SMTP	Connects to SMTP server, composes MIME messages, sends email
 Common Issues
 Authentication error
 
@@ -93,6 +78,3 @@ Thunderbird profile
 This tool communicates directly with your mail server via standard protocols — Thunderbird does not need to be running
 License
 MIT License. See LICENSE for details.
-
-Contributing
-Pull requests are welcome. For major changes, please open an issue first to discuss what you'd like to change.
