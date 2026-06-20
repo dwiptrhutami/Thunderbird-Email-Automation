@@ -5,29 +5,13 @@ import email
 from email import policy
 from email.parser import BytesParser
 import openpyxl
-import pandas as pd
-from openpyxl import load_workbook
 import datetime
 import time
 from email.utils import parsedate_to_datetime
 from datetime import datetime, timedelta
 from email import header
-from openpyxl.styles import PatternFill
 from openpyxl.workbook import Workbook
-import json
 import schedule
-import re
-import base64
-
-def save_config(config):
-    with open("config.json","w") as f:
-        json.dump(config,f,indent=4, cls=CustomEncoder)
-    print("Configuration saved!")
-
-def load_config():
-    with open("config.json","r") as f:
-        config = json.load(f)
-    return config
 
 def generate_unique_filename(output_dir,filename):
     """Generate an unique filename by appending a counter or timestamp"""
@@ -44,7 +28,7 @@ def generate_unique_filename(output_dir,filename):
 def safe_windows_path(filepath):
     """Rename file path with limitation characters"""
     max_path = 250 #for safely running
-    base_dir = os.path.abspath(output_dir)
+    base_dir = os.path.abspath(inbox_dir)
     ext = os.path.splitext(filepath)[1]
     filename = os.path.split(filepath)[1]
 
@@ -60,67 +44,42 @@ def safe_windows_path(filepath):
 def save_attachment(part, filename, email_from,subject,date):
     """Save the attachment if it has not been saved before"""
     # create a file path to save the attachment
-    unique_filename = generate_unique_filename(output_dir,filename)
+    unique_filename = generate_unique_filename(inbox_dir,filename)
     #save the attachment
-    filepath = os.path.join(output_dir,unique_filename)
+    filepath = os.path.join(inbox_dir,unique_filename)
     filepath = safe_windows_path(filepath)
     with open(filepath, 'wb') as f:
         f.write(part)
         print(f"Attachment saved: {filepath} from Subject: {subject}")
 
     #update the excel tracking file
-    update_tracking_file(unique_filename,filepath,email_from,subject,date)
+    update_tracking_file(unique_filename,email_from,subject,date)
     return True
 
-def update_tracking_file(filename, filepath, email_from, subject,date):
+def update_tracking_file(filename, email_from, subject,date):
     """Update the Excel tracking file with the latest attachment info"""
     if os.path.exists(excel_tracking_file):
         workbook = openpyxl.load_workbook(excel_tracking_file)
-        sheet = workbook["Folder A"]
+        sheet = workbook["Tracking Email"]
     else:
         workbook = Workbook()
-        workbook.active.title = "Folder A"
+        workbook.active.title = "Tracking Email"
         #add headers for the first time
         sheet = workbook.active
-        sheet.append(["Subject", "Filename", "Filepath", "Email From", "Timestamp","Email Date", "Status", "Time Update"])
+        sheet.append(["Run Time", "Subject", "Sender", "Email Received Time", "Filename Attachment"])
 
     # append the latest data
-    tracking_data = (subject, filename, filepath, email_from, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), date)
+    tracking_data = (datetime.now().strftime('%Y-%m-%d %H:%M:%S'), subject, email_from, date, filename)
     sheet.append(tracking_data)
     workbook.save(excel_tracking_file)
     print(f"Tracking updated in {excel_tracking_file}")
-
-#update tracking file
-def update_subject_tracking(subject,email_from,date,status):
-    """Update the Excel tracking file with the latest attachment info"""
-    if os.path.exists(excel_tracking_file):
-        workbook = openpyxl.load_workbook(excel_tracking_file)
-        sheet2 = workbook["Subject Email List"]
-    else:
-        workbook = Workbook()
-        sheet2 = workbook.create_sheet(title="Subject Email List",index=0)
-        #add headers for the first time
-        sheet2.append(["Subject", "Email From", "Timestamp", "Email Date", "Status"])
-
-    tracking_data2 = (subject, email_from, datetime.now().strftime('%Y-%m-%d %H:%M:%S'), date, status)
-    sheet2.append(tracking_data2)
-    workbook.save(excel_tracking_file)
-    print(f"Subject updated in {excel_tracking_file}")
-
-    color_fill = PatternFill(start_color="FF0000", end_color="FF0000", fill_type="solid")
-    if status == "FORWARD MESSAGE" or status == "CHECK MANUAL EMAIL":
-        for col in sheet2.iter_cols(min_row=1,max_row=1):
-            header = col[0].column
-            sheet2.cell(row=sheet2.max_row,column=header).fill = color_fill
-            #save the workbook
-            workbook.save(excel_tracking_file)
 
 def load_processed_subjects_from_excel():
     """Generate an Excel tracking file to track and record reading email process"""
     processed=set()
     try:
         workbook = openpyxl.load_workbook(excel_tracking_file)
-        sheet = workbook["Subject Email List"]
+        sheet = workbook["Tracking Email"]
         for row in sheet.iter_rows(min_row=2,values_only=True):
             subject = row[1]
             received_date_str = row[3]
@@ -129,8 +88,8 @@ def load_processed_subjects_from_excel():
     except FileNotFoundError:
         workbook = Workbook()
         # add headers for the first time
-        sheet = workbook.create_sheet(title="Subject Email List",index=0)
-        sheet.append(["Run Time", "Subject", "Email From", "Email Received Date", "Remarks"])
+        sheet = workbook.create_sheet(title="Tracking Email",index=0)
+        sheet.append(["Run Time", "Subject", "Sender", "Email Received Time", "Filename Attachment"])
         workbook.save(excel_tracking_file)
         print(f"Tracking updated in {excel_tracking_file}")
     return processed
@@ -146,188 +105,85 @@ def encode_subject(subject):
             subject_clean += part
     return subject_clean
 
-def character_emails(message):
-    email_date_str = re.findall(r"^Date:\s*(.+)$", message.as_string(), flags=re.IGNORECASE | re.MULTILINE)
-    email_date = email.utils.parsedate_to_datetime(email_date_str[0]).date()
-    received_date = email.utils.parsedate_to_datetime(email_date_str[0]).strftime('%Y-%m-%d %H:%M:%S')
-    email_from = encode_subject(
-        (re.findall(r"^From:\s*(.+)$", message.as_string(), flags=re.IGNORECASE | re.MULTILINE)[0]))
-    subject = encode_subject(
-        (re.findall(r"^Subject:\s*(.+)$", message.as_string(), flags=re.IGNORECASE | re.MULTILINE)[0]))
-    return (email_from,subject,email_date,received_date)
 
-
-def download_attachments(message,subject,email_from,received_date):
-    # loop through all the emails in the mbox file
-    msg = BytesParser(policy=policy.default).parsebytes(message.as_bytes())
-    filename_list = {}
-    if msg.is_multipart():
-        # loop through the email parts to find attachments
-        for part in msg.walk():
-            raw = part.get_payload()
-            filename = part.get_filename()
-            if filename and not filename.endswith('.eml'):
-                b64_data = re.sub(r'\s+', '', raw)
-                try:
-                    decoded = base64.b64decode(b64_data)
-                    filename_list[filename] = decoded
-                except Exception as e:
-                    print(f"Failed decoding {filename}: {e}")
-            elif filename and filename.endswith('.eml'):
-                try:
-                    filename_list[filename] = part
-                except Exception as e:
-                    print(f"Failed decoding {filename}: {e}")
-    else:
-        raw_bytes = message.as_bytes()
-
-        text = raw_bytes.decode("utf-8", errors="ignore")
-        # Find MIME boundary (if it's any)
-        boundary_match = re.search(r'boundary="([^"]+)"', text, re.IGNORECASE)
-        if not boundary_match:
-            # raise ValueError("No MIME boundary found")
-            filename = "CHECK MANUAL"
-            filename_list[filename] = None
-            print(f"No MIME boundary found: {subject} from {email_from}: {received_date} ")
-        else:
-            boundary = boundary_match.group(1)
-            delimiter = "--" + boundary
-            parts = text.split(delimiter)
-            for part in parts:
-                # Skip empty segments
-                if "Content-Disposition" not in part:
-                    continue
-
-                # Extract normal filename=
-                normal = re.search(r'filename="([^"]+)"', part)
-                filename = normal.group(1) if normal else None
-                # Extract Split filename= (filename*0, filename*1)
-                split_parts = {}
-                for m in re.finditer(r'filename\*(\d+)="([^"]+)"', part):
-                    idx = int(m.group(1))
-                    split_parts[idx] = m.group(2)
-                if split_parts:
-                    filename = "".join(split_parts[i] for i in sorted(split_parts.keys()))
-
-                if not filename:
-                    continue  # skip if no filename on this MIME part
-
-                # Extract Base64 content in this part only
-                b64_match = re.search(r'\n\n([\s\S]+?)$', part.strip())
-                if not b64_match:
-                    print("No Base64 found in part for:", filename)
-                b64_data = re.sub(r'\s+', '', b64_match.group(1))
-
-                # Fix padding
-                pad = len(b64_data) % 4
-                if pad:
-                    b64_data += "=" * (4 - pad)
-
-                try:
-                    decoded = base64.b64decode(b64_data)
-                    filename_list[filename] = decoded
-                    print("Decoded:", filename)
-
-                except Exception as e:
-                    print(f"Failed decoding {filename}: {e}")
-
-    check_eml = False
-    for file_list, part_file in filename_list.items():
-        if '.eml' in file_list:
-            check_eml = True
-
-    return (check_eml,filename_list)
-
-
-#function to check latest email today (reversed inbox date)
-def read_emails(mbox_path,output_dir,excel_tracking_file,wanted_extensions,day_yesterday):
+def check_emails(mbox_path,inbox_dir,excel_tracking_file,day_yesterday):
     print(f"Checking emails at {datetime.now().strftime('%H:%M')}")
 
-    """Initialize Folder"""
-    if not os.path.exists(output_dir):
-        os.makedirs(output_dir)
+    """Initialize Inbox Folder to Save Attachment Email"""
+    if not os.path.exists(inbox_dir):
+        os.makedirs(inbox_dir)
 
-    """Initialize Time Range"""
+    # get today's date in the required format
     today = datetime.now().date()
-    yesterday = today - timedelta(days=day_yesterday)
+    yesterday = today - timedelta(days=day_yesterday) # define range time to read Emails
 
-    """Load Previously Processed Subject Emails from Tracking Excel File"""
+    #load previously processed subjects from excel
     processed_subjects = load_processed_subjects_from_excel()
 
-    """Initialize MBOX Path File"""
+    # open the mbox file
     mbox = mailbox.mbox(mbox_path)
 
-    for message in reversed(mbox): #using reversed to run process reading email from Newest to Oldest
-        email_from,subject,email_date,received_date = character_emails(message)
+    #loop through all the emails in the mbox file
+    for message in reversed(mbox):
+        email_date_str = message['Date']
+        #decode email date and convert it to a datetime object
+        email_date = email.utils.parsedate_to_datetime(email_date_str).date()
+        received_date = email.utils.parsedate_to_datetime(email_date_str).strftime('%Y-%m-%d %H:%M:%S')
 
         if email_date > yesterday:
-            # print(subject, received_date)
-            if (subject, received_date) not in processed_subjects:
-                check_eml, filename_list = download_attachments(message, subject, email_from, received_date)
-                if check_eml:
-                    update_tracking_file("<FORWARD MESSAGE>", "MUST CHECK MANUAL", email_from, subject, received_date)
-                    update_subject_tracking(subject, email_from, received_date, "FORWARD MESSAGE")
-                elif filename_list == {}:
-                    update_subject_tracking(subject, email_from, received_date, "NO ATTACHMENT")
-                elif "CHECK MANUAL" in filename_list.keys():
-                    update_subject_tracking(subject, email_from, received_date, "CHECK MANUAL EMAIL")
-                else:
-                    for file_list, part_file in filename_list.items():
-                        if any(file_list.lower().endswith(ext) for ext in wanted_extensions):
-                            print(f"Attachment saved: {file_list} from Subject: {subject}")
-                            # update_tracking_file(file_list, output_dir + file_list, email_from, subject, received_date)
-                            save_attachment(part_file, file_list, email_from, subject, received_date)
-                            update_subject_tracking(subject, email_from, received_date, "OK")
-                        else:
-                            print(f"Skipping {file_list} from Subject: {subject}")
-                            update_subject_tracking(subject, email_from, received_date, "CHECK MANUAL")
-            else:
-                print(f"Skipping email with subject: {subject} {received_date} already processed")
+            # get the email sender
+            email_from = encode_subject(message['From'])
+            subject = encode_subject(message['Subject'])
 
-    # import RunAll
-    # RunAll.backup()
-    # import RenameFile
-    # RenameFile.run_program_rename()
+            if (subject,received_date) in processed_subjects:
+                print(f"Skipping email with subject: {subject} {received_date} already processed")
+                continue
+
+            msg = BytesParser(policy=policy.default).parsebytes(message.as_bytes())
+
+            if msg.is_multipart():
+                # loop through the email parts to find attachments
+                for part in msg.walk():
+                    if part.get_content_disposition() == 'attachment':
+                        filename = part.get_filename()
+                        if filename:
+                            save_attachment(part, filename, email_from, subject, received_date)
+                        else:
+                            print(f"CHECK MANUAL from Subject: {subject} - {received_date}")
+                            update_tracking_file(filename, email_from, subject, received_date)
+                    else:
+                        print(f"There is no Attachment from Subject: {subject} - {received_date}")
+                        update_tracking_file("", email_from, subject, received_date)
+        elif email_date < yesterday: break
 
 def run_program_all(scheduled_time):
     print(f"Saving emails at {datetime.now().strftime('%H:%M')} (scheduled for: {scheduled_time})")
-    check_emails(mbox_path, output_dir, excel_tracking_file, wanted_extensions, day_yesterday)
+    check_emails(mbox_path, inbox_dir, excel_tracking_file, day_yesterday)
 
 def schedule_tasks():
-    schedulers = ["08:03", "10:25", "12:55", "14:55"]
+    """Schedule Running Time Daily in Hours"""
+    schedulers = ["08:00", "10:00", "13:00", "15:00"]
     for hour in schedulers:
         schedule.every().day.at(hour).do(run_program_all, hour)
 
 def run_pending_task():
+    """While the Schedule is not running, program waits for the next schedule"""
     while True:
         schedule.run_pending()
         time.sleep(1)
 
-def run_all():
-    config = {}
-    mbox_path = config.get("mbox_path")
-    # directory to save attachments
-    output_dir = config.get("output_dir")
-    # path to Excel Tracking File
-    excel_tracking_file = config.get("excel_tracking_file")
-    # define a list of unwanted file extensions
-    wanted_extensions = config.get("wanted_extensions")
-    day_yesterday = config.get("day_yesterday")
-    save_config(config)
-
 
 #start the email check process
 if __name__ == '__main__':
-    config = load_config()
     # path to your thunderbird mbox file
-    mbox_path = config.get("mbox_path")
+    mbox_path = r"C:\Users\<username>\AppData\Roaming\Thunderbird\Profiles\<profile>\Mail"
     # directory to save attachments
-    output_dir = config.get("output_dir")
+    inbox_dir = r"C:\Users\Inbox_Email"
     # path to Excel Tracking File
-    excel_tracking_file = config.get("excel_tracking_file")
+    excel_tracking_file = r"C:\Users\Thunderbird_Project\Tracking\Tracking_Email.xlsx"
     # define a list of unwanted file extensions
-    wanted_extensions = config.get("wanted_extensions")
-    day_yesterday = config.get("day_yesterday")
+    wanted_extensions = {'.xls', '.xlsx', '.xlsm', '.xlsb', '.ods'}
+    day_yesterday = 2
     print("Scheduler started. Waiting for tasks..")
     schedule_tasks()
     run_pending_task()
